@@ -1,0 +1,15 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def f(x, y):
+    return x**2 * y.diff(x, x) + x * y.diff(x) + (x**2 - 1) * y
+
+x = np.linspace(-5, 5, 100)
+y = np.sin(x)  # замените на ваше решение уравнения
+
+plt.plot(x, y)
+plt.xlabel('x')
+plt.ylabel('y')
+plt.title('График функции y(x)')
+plt.grid(True)
+plt.show()
