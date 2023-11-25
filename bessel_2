@@ -1,0 +1,18 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def f(x, y):
+    return x**2 * y.diff(x, x) + x * y.diff(x) + (x**2 - 1) * y
+
+x = np.linspace(-5, 5, 100)
+
+# Решение уравнения с условиями y(0) = 0 и y'(0) = 0
+y = np.zeros_like(x)
+y[1:] = np.cumsum(f(x[1:], y[1:])) * (x[1] - x[0])  # численное интегрирование
+
+plt.plot(x, y)
+plt.xlabel('x')
+plt.ylabel('y')
+plt.title('График функции y(x) с условиями y(0) = 0 и y\'(0) = 0')
+plt.grid(True)
+plt.show()
