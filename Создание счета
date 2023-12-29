@@ -1,0 +1,93 @@
+CModule::IncludeModule('crm');
+$eventManager->addEventHandler("crm", 'OnAfterCrmDealAdd', 'createInvoice');
+$eventManager->addEventHandler("crm", 'OnBeforeCrmDealAdd', 'replaceTimeBeforeAddDeal');
+
+$eventManager->addEventHandler("crm", 'OnAfterCrmDealUpdate', 'getDealField');
+// $eventManager->addEventHandler("crm", 'OnAfterCrmDealUpdate', 'test_func_1');
+
+function test_func_1(&$arFields) {
+    $arFilter = array(   
+        "ID" => 16, 
+    );            
+    $arSelect = array("*");   
+    $res = CCrmInvoice::GetList($arOrder = Array("ID"=>"DESC"), $arFilter , false, false, $arSelect); 
+    AddMessage2Log($res->Fetch());
+}
+
+function getDealField(&$arFields) {
+    AddMessage2Log($arFields);
+
+    // Информация о сделке
+    $arDeal = \Bitrix\Crm\DealTable::getList([
+        'select' => ['*'],
+        'filter' => ['ID' => $arFields['ID']],
+    ])->fetchAll();
+
+    $deal = $arDeal[0];
+    unset($arDeal);
+
+    if ($deal['COMPANY_ID'] == '0') {
+        return;
+    }
+
+    // Информация о товарных строка всделке
+    $productsRow = [];
+    $dealProducts = CALLCrmProductRow::LoadRows('D', $arFields['ID']);
+
+    foreach ($dealProducts as $index => $dealProduct) {
+        $productsRow[] = [
+            'ID' => $index,
+            'PRODUCT_ID' => $dealProduct['PRODUCT_ID'],
+            'PRODUCT_NAME' => $dealProduct['PRODUCT_NAME'],
+            'PRICE' => $dealProduct['PRICE'], // TODO Скорре всего нудно будет премножать цену на количество
+            'QUANTITY' => $dealProduct['QUANTITY'],
+            'DISCOUNT_PRICE' => $dealProduct['PRICE'],
+            'MEASURE_CODE' => $dealProduct['MEASURE_CODE'],
+            'MEASURE_NAME' => $dealProduct['MEASURE_NAME'],
+            'VAT_INCLUDED' => 'Y',
+            'VAT_RATE' => 0,
+        ];
+    }
+
+    // Получение реквизитов исполнителя
+    $entityRequisite = new \Bitrix\Crm\EntityRequisite;
+    $rqResult = $entityRequisite->getList([
+        "select" => array("*"),
+        "filter" => array(
+            "ENTITY_ID" => 1154, 
+            "ENTITY_TYPE_ID" => CCrmOwnerType::Company
+        ),
+        "order"=>array("SORT"=>"desc","ID"=>"desc")
+    ]);
+    $rqResult = $rqResult->fetchAll();
+
+    if (count($rqResult) > 0) {
+        $rqResult = $rqResult[0];
+        $arInvoiceProp = [
+            'INN' => $rqResult["RQ_INN"],                       
+            'KPP' => $rqResult["RQ_KPP"],                           
+            'COMPANY' => $rqResult["RQ_COMPANY_NAME"]
+        ];
+    }
+
+    $arFieldsInvoice = array(
+        'PRODUCT_ROWS' => $productsRow,
+        'INVOICE_PROPERTIES' => $arInvoiceProp,
+        'ORDER_TOPIC' => $deal['TITLE'],
+        'STATUS_ID' => 'N', // Глянуть что это
+        'DATE_INSERT' => date("d.m.Y H:i:s", strtotime("+0 hours")),
+        'DATE_BILL' => date("d.m.Y", strtotime("+0 hours")),
+        'RESPONSIBLE_ID' => $deal['CREATED_BY_ID'],
+        'UF_DEAL_ID' => $deal['ID'],
+        'UF_MYCOMPANY_ID' => (int)$deal['COMPANY_ID'],
+        "PERSON_TYPE_ID" => 1,
+        "PAY_SYSTEM_ID" => 1,
+    );
+
+    // AddMessage2Log($arFieldsInvoice);
+
+    $oCrmInvoice = new CCrmInvoice(false);
+    $result = $oCrmInvoice->Add($arFieldsInvoice);
+   
+    AddMessage2Log($result);
+}
